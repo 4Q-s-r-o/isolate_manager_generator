@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/element2.dart';
 import 'package:args/args.dart';
 import 'package:isolate_manager/isolate_manager.dart';
 import 'package:isolate_manager_generator/src/model/exceptions.dart';
@@ -125,23 +125,23 @@ Future<Map<String, AnnotationResult>> _getAnotatedFunctions(String path) async {
 
   for (final declaration in unit.declarations) {
     if (declaration is FunctionDeclaration) {
-      final element = declaration.declaredElement;
+      final element = declaration.declaredFragment?.element;
       if (element != null) {
         final annotationNameValue =
             _getIsolateManagerWorkerAnnotationValue(element);
         if (annotationNameValue != null) {
-          annotatedFunctions[element.name] = annotationNameValue;
+          annotatedFunctions[element.name3!] = annotationNameValue;
         }
       }
     } else if (declaration is ClassDeclaration) {
       for (final member in declaration.members) {
         if (member is MethodDeclaration && member.isStatic) {
-          final element = member.declaredElement;
+          final element = member.declaredFragment?.element;
           if (element != null) {
             final annotationNameValue =
                 _getIsolateManagerWorkerAnnotationValue(element);
             if (annotationNameValue != null) {
-              annotatedFunctions['${declaration.name}.${element.name}'] =
+              annotatedFunctions['${declaration.name}.${element.name3}'] =
                   annotationNameValue;
             }
           }
@@ -290,36 +290,32 @@ Future<void> _generateFromAnotatedFunction(List<dynamic> params) async {
   }
 }
 
-AnnotationResult? _getIsolateManagerWorkerAnnotationValue(Element element) {
-  for (final metadata in element.metadata) {
+AnnotationResult? _getIsolateManagerWorkerAnnotationValue(Element2 element) {
+  for (final metadata in element.fragments) {
     final annotationElement = metadata.element;
-    if (annotationElement is ConstructorElement) {
-      // TODO: Change to `variable2` when bumping the `analyzer` to `^6.0.0`
-      // ignore: deprecated_member_use
-      final enclosingElement = annotationElement.enclosingElement;
-      if (enclosingElement is ClassElement) {
-        if (enclosingElement.name == classAnnotation) {
+    if (annotationElement is ConstructorElement2) {
+      final enclosingElement = annotationElement.enclosingElement2;
+      if (enclosingElement is ClassElement2) {
+        if (enclosingElement.name3 == classAnnotation) {
           return AnnotationResult(
             workerName: '',
             isCustomWorker: false,
           );
-        } else if (enclosingElement.name == classCustomWorkerAnnotation) {
+        } else if (enclosingElement.name3 == classCustomWorkerAnnotation) {
           return AnnotationResult(
             workerName: '',
             isCustomWorker: true,
           );
         }
       }
-    } else if (annotationElement is PropertyAccessorElement) {
-      // TODO: Change to `variable2` when bumping the `analyzer` to `^6.0.0`
-      // ignore: deprecated_member_use
-      final variable = annotationElement.variable;
-      if (variable.name == constAnnotation) {
+    } else if (annotationElement is PropertyAccessorElement2) {
+      final variable = annotationElement.variable3;
+      if (variable?.name3 == constAnnotation) {
         return AnnotationResult(
           workerName: '',
           isCustomWorker: false,
         );
-      } else if (variable.name == constCustomWorkerAnnotation) {
+      } else if (variable?.name3 == constCustomWorkerAnnotation) {
         return AnnotationResult(
           workerName: '',
           isCustomWorker: true,

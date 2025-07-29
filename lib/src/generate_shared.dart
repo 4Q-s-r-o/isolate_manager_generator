@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/element2.dart';
 import 'package:args/args.dart';
 import 'package:isolate_manager/isolate_manager.dart';
 import 'package:isolate_manager_generator/src/model/exceptions.dart';
@@ -124,21 +124,21 @@ Future<Map<String, String>> _getAnotatedFunctions(String path) async {
 
   for (final declaration in unit.declarations) {
     if (declaration is FunctionDeclaration) {
-      final element = declaration.declaredElement;
+      final element = declaration.declaredFragment?.element;
       if (element != null) {
         final isValidAnnotation = _checkAnnotation(element);
         if (isValidAnnotation) {
-          annotatedFunctions[element.name] = p.relative(sourceFilePath);
+          annotatedFunctions[element.name3!] = p.relative(sourceFilePath);
         }
       }
     } else if (declaration is ClassDeclaration) {
       for (final member in declaration.members) {
         if (member is MethodDeclaration && member.isStatic) {
-          final element = member.declaredElement;
+          final element = member.declaredFragment?.element;
           if (element != null) {
             final isValidAnnotation = _checkAnnotation(element);
             if (isValidAnnotation) {
-              annotatedFunctions['${declaration.name}.${element.name}'] =
+              annotatedFunctions['${declaration.name}.${element.name3}'] =
                   p.relative(sourceFilePath);
             }
           }
@@ -256,14 +256,12 @@ Future<void> _generateFromAnotatedFunctions(
   }
 }
 
-bool _checkAnnotation(Element element) {
-  for (final metadata in element.metadata) {
+bool _checkAnnotation(Element2 element) {
+  for (final metadata in element.fragments) {
     final annotationElement = metadata.element;
-    if (annotationElement is PropertyAccessorElement) {
-      // TODO: Change to `variable2` when bumping the `analyzer` to `^6.0.0`
-      // ignore: deprecated_member_use
-      final variable = annotationElement.variable;
-      if (variable.name == _constAnnotation) {
+    if (annotationElement is PropertyAccessorElement2) {
+      final variable = annotationElement.variable3;
+      if (variable?.name3 == _constAnnotation) {
         return true;
       }
     }
