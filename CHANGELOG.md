@@ -1,8 +1,14 @@
-## 0.2.0-rc
+## 0.2.0
+
+* Update analyzer dependency to `^8.1.0`.
+* Fix issue preventing the generator from producing expected output.
+* Use `very_good_analysis`.
+
+## 0.2.0-rc **Avoid Using This Version**
 
 * Update analyzer dependency to ^8.0.0.
 
-## 0.1.0
+## 0.1.0 **Avoid Using This Version**
 
 * Update analyzer dependency to ^7.0.0.
 
