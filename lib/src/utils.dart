@@ -259,6 +259,7 @@ List<String> _containedAnnotations(
   List<ElementAnnotation> metadata,
   List<String> classAnnotations,
 ) {
+  final foundAnnotations = <String>[];
   for (final annotation in metadata) {
     final constantValue = annotation.computeConstantValue();
     if (constantValue != null) {
@@ -267,8 +268,8 @@ List<String> _containedAnnotations(
       final foundAnnotation =
           classAnnotations.where((e) => e == constantValue.variable?.name);
 
-      return foundAnnotation.toList();
+      foundAnnotations.addAll(foundAnnotation);
     }
   }
-  return [];
+  return foundAnnotations;
 }
