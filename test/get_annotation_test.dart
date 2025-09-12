@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:isolate_manager_generator/src/utils.dart';
+import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 
 void main() {
   test('Get annotations test', () async {
-    final annotations = await parseAnnotations('test/functions.dart', [
+    final annotations =
+        await parseAnnotations(path.join('test', 'functions.dart'), [
       'isolateManagerWorker',
       'isolateManagerCustomWorker',
       'isolateManagerSharedWorker',
@@ -37,27 +39,31 @@ void main() {
         'run',
         'isolate_manager_generator',
         '--input',
-        'test/',
+        'test',
         '--output',
-        'test/output',
+        path.join('test', 'output'),
       ],
     );
 
     expect(
       process.stdout,
-      contains('Compiled: test/output/myCustomWorkerFunction.js'),
+      contains(
+          'Compiled: ${path.join('test', 'output', 'myCustomWorkerFunction.js')}'),
     );
     expect(
       process.stdout,
-      contains('Compiled: test/output/MyService.myCustomWorkerFunction.js'),
+      contains(
+          'Compiled: ${path.join('test', 'output', 'MyService.myCustomWorkerFunction.js')}'),
     );
     expect(
       process.stdout,
-      contains('Compiled: test/output/myWorkerFunction.js'),
+      contains(
+          'Compiled: ${path.join('test', 'output', 'myWorkerFunction.js')}'),
     );
     expect(
       process.stdout,
-      contains('Compiled: test/output/MyService.myWorkerMethod.js'),
+      contains(
+          'Compiled: ${path.join('test', 'output', 'MyService.myWorkerMethod.js')}'),
     );
 
     for (final fileName in [
@@ -66,9 +72,9 @@ void main() {
       'myWorkerFunction.js',
       'MyService.myWorkerMethod.js',
     ]) {
-      expect(File('test/output/$fileName').existsSync(), isTrue);
+      expect(File(path.join('test', 'output', fileName)).existsSync(), isTrue);
     }
 
-    Directory('test/output').deleteSync(recursive: true);
+    Directory(path.join('test', 'output')).deleteSync(recursive: true);
   });
 }
