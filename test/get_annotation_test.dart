@@ -18,15 +18,21 @@ void main() {
       equals({
         'isolateManagerWorker': [
           'myWorkerFunction',
-          'MyService.myWorkerMethod'
+          'myMultiWorkersFunction',
+          'MyService.myWorkerMethod',
+          'MyService.myMultiWorkersFunction',
         ],
         'isolateManagerCustomWorker': [
           'myCustomWorkerFunction',
-          'MyService.myCustomWorkerFunction'
+          'myMultiWorkersFunction',
+          'MyService.myCustomWorkerFunction',
+          'MyService.myMultiWorkersFunction',
         ],
         'isolateManagerSharedWorker': [
           'mySharedWorkerFunction',
-          'MyService.mySharedWorkerFunction'
+          'myMultiWorkersFunction',
+          'MyService.mySharedWorkerFunction',
+          'MyService.myMultiWorkersFunction',
         ]
       }),
     );
@@ -65,12 +71,24 @@ void main() {
       contains(
           'Compiled: ${path.join('test', 'output', 'MyService.myWorkerMethod.js')}'),
     );
+    expect(
+      process.stdout,
+      contains(
+          'Compiled: ${path.join('test', 'output', 'myMultiWorkersFunction.js')}'),
+    );
+    expect(
+      process.stdout,
+      contains(
+          'Compiled: ${path.join('test', 'output', 'MyService.myMultiWorkersFunction.js')}'),
+    );
 
     for (final fileName in [
       'myCustomWorkerFunction.js',
       'MyService.myCustomWorkerFunction.js',
       'myWorkerFunction.js',
       'MyService.myWorkerMethod.js',
+      'myMultiWorkersFunction.js',
+      'MyService.myMultiWorkersFunction.js',
     ]) {
       expect(File(path.join('test', 'output', fileName)).existsSync(), isTrue);
     }
