@@ -1,9 +1,5 @@
 import 'dart:io';
 
-import 'package:analyzer/dart/analysis/results.dart';
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/element/element.dart';
 import 'package:args/args.dart';
 import 'package:isolate_manager/isolate_manager.dart';
 import 'package:isolate_manager_generator/src/model/exceptions.dart';
@@ -45,9 +41,7 @@ Future<void> generate(
 
   await Future.wait([
     for (final file in dartFiles)
-      sharedIsolates
-          .compute(_checkAndCollectAnnotatedFiles, file)
-          .then((value) {
+      sharedIsolates.compute(checkAndCollectAnnotatedFiles, file).then((value) {
         if (value.isNotEmpty) {
           params.add([value]);
         }
@@ -62,7 +56,7 @@ Future<void> generate(
     [
       for (final param in params)
         sharedIsolates
-            .compute(_getAndGenerateFromAnotatedFunctions, param)
+            .compute(getAndGenerateFromAnotatedFunctions, param)
             .then((value) {
           counter += value.length;
           anotatedFunctions.addAll(value);
@@ -71,7 +65,7 @@ Future<void> generate(
   );
 
   if (anotatedFunctions.isNotEmpty) {
-    await _generateFromAnotatedFunctions(
+    await generateFromAnotatedFunctions(
       anotatedFunctions,
       obfuscate,
       isDebug,
@@ -90,7 +84,7 @@ Future<void> generate(
   print('Done');
 }
 
-Future<String> _checkAndCollectAnnotatedFiles(File file) async {
+Future<String> checkAndCollectAnnotatedFiles(File file) async {
   final filePath = p.absolute(file.path);
   final content = file.readAsStringSync();
   if (containsAnnotations(content)) {
@@ -103,54 +97,29 @@ bool containsAnnotations(String content) {
   return content.contains(_sharedAnnotations);
 }
 
-Future<Map<String, String>> _getAndGenerateFromAnotatedFunctions(
+Future<Map<String, String>> getAndGenerateFromAnotatedFunctions(
   List<dynamic> params,
 ) async {
   final String filePath = params[0];
 
-  return _getAnotatedFunctions(filePath);
+  return getAnotatedFunctions(filePath);
 }
 
-Future<Map<String, String>> _getAnotatedFunctions(String path) async {
-  final sourceFilePath = p.absolute(path);
-  final result = await resolveFile2(path: sourceFilePath);
+Future<Map<String, String>> getAnotatedFunctions(String path) async {
+  final annotations = await parseAnnotations(path, [_constAnnotation]);
+  final relativePath = p.relative(path);
 
-  if (result is! ResolvedUnitResult) {
-    throw IMGUnableToResolvingFileException(sourceFilePath);
-  }
-
-  final unit = result.unit;
   final annotatedFunctions = <String, String>{};
-
-  for (final declaration in unit.declarations) {
-    if (declaration is FunctionDeclaration) {
-      final element = declaration.declaredFragment?.element;
-      if (element != null) {
-        final isValidAnnotation = _checkAnnotation(element);
-        if (isValidAnnotation) {
-          annotatedFunctions[element.name!] = p.relative(sourceFilePath);
-        }
-      }
-    } else if (declaration is ClassDeclaration) {
-      for (final member in declaration.members) {
-        if (member is MethodDeclaration && member.isStatic) {
-          final element = member.declaredFragment?.element;
-          if (element != null) {
-            final isValidAnnotation = _checkAnnotation(element);
-            if (isValidAnnotation) {
-              annotatedFunctions['${declaration.name}.${element.name}'] =
-                  p.relative(sourceFilePath);
-            }
-          }
-        }
-      }
+  for (final entry in annotations.entries) {
+    for (var functionName in entry.value) {
+      annotatedFunctions[functionName] = relativePath;
     }
   }
 
   return annotatedFunctions;
 }
 
-Future<void> _generateFromAnotatedFunctions(
+Future<void> generateFromAnotatedFunctions(
   Map<String, String> anotatedFunctions,
   String obfuscate,
   bool isDebug,
@@ -254,17 +223,4 @@ Future<void> _generateFromAnotatedFunctions(
       await file.delete();
     }
   }
-}
-
-bool _checkAnnotation(Element element) {
-  for (final metadata in element.fragments) {
-    final annotationElement = metadata.element;
-    if (annotationElement is PropertyAccessorElement) {
-      final variable = annotationElement.variable;
-      if (variable?.name == _constAnnotation) {
-        return true;
-      }
-    }
-  }
-  return false;
 }

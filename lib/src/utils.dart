@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:isolate_manager_generator/src/model/exceptions.dart';
 import 'package:path/path.dart' as p;
 
@@ -188,4 +191,77 @@ Future<void> addWorkerMappingToSourceFile(
   }
 
   return (mainArgs: args, dartArgs: dartArgs);
+}
+
+/// Parses a Dart file to find methods annotated with specific annotations.
+Future<Map<String, List<String>>> parseAnnotations(
+  String filePath,
+  List<String> annotations,
+) async {
+  filePath = p.absolute(filePath);
+
+  // Check if the file exists.
+  if (!File(filePath).existsSync()) {
+    throw FileSystemException("File not found at: $filePath");
+  }
+
+  final result = await resolveFile(path: filePath);
+
+  // Ensure the result is a ResolvedUnitResult and not an error.
+  if (result is! ResolvedUnitResult) {
+    throw Exception('Could not resolve the unit for analysis.');
+  }
+
+  final annotatedMethods = <String, List<String>>{};
+  final library = result.libraryElement;
+
+  // Iterate over all top-level functions in the library's defining unit.
+  for (final function in library.topLevelFunctions) {
+    final foundAnnotations = _containedAnnotations(
+      function.metadata.annotations,
+      annotations,
+    );
+    for (final annotation in foundAnnotations) {
+      annotatedMethods
+          .putIfAbsent(annotation, () => [])
+          .add(function.name.toString());
+    }
+  }
+
+  // Iterate over all classes in the library's defining unit.
+  for (final classElement in library.classes) {
+    // Iterate over all methods within the class.
+    for (final method in classElement.methods) {
+      final foundAnnotations = _containedAnnotations(
+        method.metadata.annotations,
+        annotations,
+      );
+      for (final annotation in foundAnnotations) {
+        annotatedMethods
+            .putIfAbsent(annotation, () => [])
+            .add('${classElement.name}.${method.name}');
+      }
+    }
+  }
+
+  return annotatedMethods;
+}
+
+/// Helper method to check for the `@isolateManagerWorker` annotation.
+List<String> _containedAnnotations(
+  List<ElementAnnotation> metadata,
+  List<String> classAnnotations,
+) {
+  for (final annotation in metadata) {
+    final constantValue = annotation.computeConstantValue();
+    if (constantValue != null) {
+      // We check only the variable name to avoid issues with different import paths.
+      // Not use this type check: `e == constantValue.type?.element?.name`
+      final foundAnnotation =
+          classAnnotations.where((e) => e == constantValue.variable?.name);
+
+      return foundAnnotation.toList();
+    }
+  }
+  return [];
 }

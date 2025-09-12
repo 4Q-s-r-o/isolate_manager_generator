@@ -149,13 +149,11 @@ class IsolateManagerGenerator {
     Directory dir,
     List<File> fileList,
   ) {
-    final files = dir.listSync(recursive: false);
+    final files = dir.listSync(recursive: true);
 
-    for (FileSystemEntity file in files) {
+    for (final file in files) {
       if (file is File && extension(file.path) == '.dart') {
         fileList.add(file);
-      } else if (file is Directory) {
-        fileList = listDartFiles(file, fileList);
       }
     }
 

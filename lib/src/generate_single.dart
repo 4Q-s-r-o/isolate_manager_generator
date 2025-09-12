@@ -1,23 +1,15 @@
 import 'dart:io';
 
-import 'package:analyzer/dart/analysis/results.dart';
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
-import 'package:analyzer/dart/element/element.dart';
 import 'package:args/args.dart';
 import 'package:isolate_manager/isolate_manager.dart';
 import 'package:isolate_manager_generator/src/model/exceptions.dart';
 import 'package:isolate_manager_generator/src/utils.dart';
 import 'package:path/path.dart' as p;
 
-import 'model/annotation_result.dart';
-
-const classAnnotation = 'IsolateManagerWorker';
-const classCustomWorkerAnnotation = 'IsolateManagerCustomWorker';
 const constAnnotation = 'isolateManagerWorker';
 const constCustomWorkerAnnotation = 'isolateManagerCustomWorker';
 final _singlePattern = RegExp(
-  '(@$classAnnotation|@$classCustomWorkerAnnotation|@$constAnnotation|@$constCustomWorkerAnnotation)',
+  '(@$constAnnotation|@$constCustomWorkerAnnotation)',
 );
 
 final sharedIsolates = IsolateManager.createShared(
@@ -77,7 +69,7 @@ Future<void> generate(
   await Future.wait([
     for (final param in params)
       sharedIsolates
-          .compute(_getAndGenerateFromAnotatedFunctions, param)
+          .compute(getAndGenerateFromAnotatedFunctions, param)
           .then((value) => counter += value),
   ]);
 
@@ -100,62 +92,37 @@ bool containsAnnotations(String content) {
   return content.contains(_singlePattern);
 }
 
-Future<int> _getAndGenerateFromAnotatedFunctions(List<dynamic> params) async {
+Future<int> getAndGenerateFromAnotatedFunctions(List<dynamic> params) async {
   final filePath = params[0] as String;
 
-  final anotatedFunctions = await _getAnotatedFunctions(filePath);
+  final anotatedFunctions = await parseAnnotations(filePath, [
+    constAnnotation,
+    constCustomWorkerAnnotation,
+  ]);
+
+  final map = <String, bool>{};
+  for (final entry in anotatedFunctions.entries) {
+    if (entry.key == constAnnotation) {
+      for (var functionName in entry.value) {
+        map[functionName] = false;
+      }
+    } else if (entry.key == constCustomWorkerAnnotation) {
+      for (var functionName in entry.value) {
+        map[functionName] = true;
+      }
+    }
+  }
 
   if (anotatedFunctions.isNotEmpty) {
-    await _generateFromAnotatedFunctions(params, anotatedFunctions);
+    await generateFromAnotatedFunctions(params, map);
   }
 
   return anotatedFunctions.length;
 }
 
-Future<Map<String, AnnotationResult>> _getAnotatedFunctions(String path) async {
-  final sourceFilePath = p.absolute(path);
-  final result = await resolveFile2(path: sourceFilePath);
-
-  if (result is! ResolvedUnitResult) {
-    throw IMGUnableToResolvingFileException(sourceFilePath);
-  }
-
-  final unit = result.unit;
-  final annotatedFunctions = <String, AnnotationResult>{};
-
-  for (final declaration in unit.declarations) {
-    if (declaration is FunctionDeclaration) {
-      final element = declaration.declaredFragment?.element;
-      if (element != null) {
-        final annotationNameValue =
-            _getIsolateManagerWorkerAnnotationValue(element);
-        if (annotationNameValue != null) {
-          annotatedFunctions[element.name!] = annotationNameValue;
-        }
-      }
-    } else if (declaration is ClassDeclaration) {
-      for (final member in declaration.members) {
-        if (member is MethodDeclaration && member.isStatic) {
-          final element = member.declaredFragment?.element;
-          if (element != null) {
-            final annotationNameValue =
-                _getIsolateManagerWorkerAnnotationValue(element);
-            if (annotationNameValue != null) {
-              annotatedFunctions['${declaration.name}.${element.name}'] =
-                  annotationNameValue;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return annotatedFunctions;
-}
-
-Future<void> _generateFromAnotatedFunctions(
+Future<void> generateFromAnotatedFunctions(
   List<dynamic> params,
-  Map<String, AnnotationResult> anotatedFunctions,
+  Map<String, bool> anotatedFunctions,
 ) async {
   final sourceFilePath = params[0] as String;
   final isWorkerMappings = params[6] as String;
@@ -164,7 +131,7 @@ Future<void> _generateFromAnotatedFunctions(
   await Future.wait(
     [
       for (final function in anotatedFunctions.entries)
-        _generateFromAnotatedFunction([
+        generateFromAnotatedFunction([
           params,
           function,
         ]),
@@ -186,14 +153,14 @@ Future<void> _generateFromAnotatedFunctions(
   }
 }
 
-Future<void> _generateFromAnotatedFunction(List<dynamic> params) async {
+Future<void> generateFromAnotatedFunction(List<dynamic> params) async {
   final sourceFilePath = params[0][0] as String;
   final obfuscate = params[0][1] as String;
   final isDebug = params[0][2] as bool;
   final isWasm = params[0][3] as bool;
   final output = params[0][4] as String;
   final dartArgs = params[0][5] as List<String>;
-  final MapEntry<String, AnnotationResult> function = params[1];
+  final MapEntry<String, bool> function = params[1];
 
   final inputPath = p.absolute(
     p.join(
@@ -203,9 +170,7 @@ Future<void> _generateFromAnotatedFunction(List<dynamic> params) async {
   );
   final file = File(inputPath);
   final extension = isWasm ? 'wasm' : 'js';
-  final name = function.value.workerName != ''
-      ? function.value.workerName
-      : function.key;
+  final name = function.key;
   final outputPath = p.join(output, '$name.$extension');
   final outputFile = File(outputPath);
   final backupOutputData =
@@ -217,7 +182,7 @@ Future<void> _generateFromAnotatedFunction(List<dynamic> params) async {
     sink.writeln("import 'package:isolate_manager/isolate_manager.dart';");
     sink.writeln();
     sink.writeln('main() {');
-    if (function.value.isCustomWorker) {
+    if (function.value) {
       sink.writeln(
         '  IsolateManagerFunction.customWorkerFunction(${function.key});',
       );
@@ -288,40 +253,4 @@ Future<void> _generateFromAnotatedFunction(List<dynamic> params) async {
       await file.delete();
     }
   }
-}
-
-AnnotationResult? _getIsolateManagerWorkerAnnotationValue(Element element) {
-  for (final metadata in element.fragments) {
-    final annotationElement = metadata.element;
-    if (annotationElement is ConstructorElement) {
-      final enclosingElement = annotationElement.enclosingElement;
-      if (enclosingElement is ClassElement) {
-        if (enclosingElement.name == classAnnotation) {
-          return AnnotationResult(
-            workerName: '',
-            isCustomWorker: false,
-          );
-        } else if (enclosingElement.name == classCustomWorkerAnnotation) {
-          return AnnotationResult(
-            workerName: '',
-            isCustomWorker: true,
-          );
-        }
-      }
-    } else if (annotationElement is PropertyAccessorElement) {
-      final variable = annotationElement.variable;
-      if (variable?.name == constAnnotation) {
-        return AnnotationResult(
-          workerName: '',
-          isCustomWorker: false,
-        );
-      } else if (variable?.name == constCustomWorkerAnnotation) {
-        return AnnotationResult(
-          workerName: '',
-          isCustomWorker: true,
-        );
-      }
-    }
-  }
-  return null;
 }
