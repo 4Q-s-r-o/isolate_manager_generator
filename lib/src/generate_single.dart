@@ -196,7 +196,7 @@ Future<void> _generateFromAnnotatedFunction(List<dynamic> params) async {
     await sink.close();
 
     if (outputFile.existsSync()) {
-      outputFile.deleteSync();
+      await outputFile.delete();
     }
 
     final dartPath = Platform.resolvedExecutable;
@@ -235,9 +235,15 @@ Future<void> _generateFromAnnotatedFunction(List<dynamic> params) async {
       );
       if (!isDebug) {
         if (isWasm) {
-          await File(p.join(output, '$name.unopt.wasm')).delete();
+          final unoptWasmPath = p.join(output, '$name.unopt.wasm');
+          if (File(unoptWasmPath).existsSync()) {
+            await File(unoptWasmPath).delete();
+          }
         } else {
-          await File(p.join(output, '$name.js.deps')).delete();
+          final jsDepsPath = p.join(output, '$name.js.deps');
+          if (File(jsDepsPath).existsSync()) {
+            await File(jsDepsPath).delete();
+          }
         }
       }
     } else {

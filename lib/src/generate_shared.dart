@@ -201,9 +201,15 @@ Future<void> _generateFromAnnotatedFunctions(
       printDebug(() => 'Compiled: ${p.relative(outputPath)}');
       if (!isDebug) {
         if (isWasm) {
-          await File(p.join(output, '$name.unopt.wasm')).delete();
+          final unoptWasmFile = File(p.join(output, '$name.unopt.wasm'));
+          if (unoptWasmFile.existsSync()) {
+            await unoptWasmFile.delete();
+          }
         } else {
-          await File(p.join(output, '$name.js.deps')).delete();
+          final jsDepsFile = File(p.join(output, '$name.js.deps'));
+          if (jsDepsFile.existsSync()) {
+            await jsDepsFile.delete();
+          }
         }
       }
     } else {
@@ -234,7 +240,7 @@ Future<void> _generateFromAnnotatedFunctions(
     }
     rethrow;
   } finally {
-    if (!isDebug) {
+    if (!isDebug && file.existsSync()) {
       await file.delete();
     }
   }
