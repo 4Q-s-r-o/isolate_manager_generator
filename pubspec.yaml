@@ -12,6 +12,7 @@ dependencies:
   isolate_manager:
     git:
       url: https://github.com/4Q-s-r-o/isolate_manager.git
+      ref: 6.1.2-kryptor-1
   path: ^1.9.0
 
 dev_dependencies:
